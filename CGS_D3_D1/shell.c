@@ -3,7 +3,7 @@
 
 int main(void) {
 	
-	// format our virtual disk
+	// format our virtual disk and write into virualdiskD3_D1
 	format();
   return 0;
 }
