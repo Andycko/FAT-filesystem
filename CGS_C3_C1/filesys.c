@@ -70,8 +70,9 @@ void writeblock ( diskblock_t * block, int block_address )
  *              - each block can hold (BLOCKSIZE / sizeof(fatentry_t)) fat entries
  */
 
+
 /*
- * The format function prepares the virtualdisk for usage,
+ * Prepares the virtualdisk for usage,
  * names it, creates and populates the fat table
  */
 void format ( )
@@ -99,6 +100,8 @@ void format ( )
 	block.dir.isdir = 1;
 	block.dir.nextEntry = 0;
 	strcpy(block.dir.entrylist->name, "root");
+	block.dir.entrylist->used = TRUE;
+	
 	// write block to virtual disk after the FAT table
 	writeblock(&block, 3);
 
@@ -113,8 +116,105 @@ void format ( )
 
 
 /*
- * Helper functions
+ * Creates a new file or reads/writes an existing one
+ * and saves it into the vitrual disk
  */
+MyFILE * myfopen(const char * filename, const char * mode) {
+	// Mismatched mode, return null pointer
+	if (!(strcmp(mode,"r") == 0 || strcmp(mode,"w") == 0)) {
+		printf("Wrong manipulation mode was selected. Modes = [\"r\",\"w\"]\n");
+		return NULL;
+	}
+	
+	// create a new file, allocate memory to it, sets file mode and first byte
+	MyFILE * file = malloc(sizeof(MyFILE));
+	strcpy(file->mode, mode);
+	file->pos = 0;
+
+	// find root directory
+	diskblock_t rootBlock = virtualDisk[rootDirIndex];
+	// check if file already exists and save index
+	int filepos = -1;	
+	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+		if (rootBlock.dir.entrylist[i].used && strcmp(rootBlock.dir.entrylist[i].name, filename) == 0) {
+			filepos = i;
+			break;
+		}
+	}
+
+	// if file exists set blockno and buffer
+	if (filepos != -1) {
+		file->blockno = rootBlock.dir.entrylist[filepos].firstblock;
+		file->buffer = virtualDisk[file->blockno];
+	// if file doesn't exist and writemode is enabled
+	} else if (strcmp(mode, "w") == 0) {
+		// find free file space in directory
+		int freeDirPos;
+		for (int i = 0; i < DIRENTRYCOUNT; i++) {
+			if (!rootBlock.dir.entrylist[i].used) {	
+				freeDirPos = i;
+				break;
+			}
+		}
+
+		// find free space in FAT table, set it to EOC and save index into file
+		// start from index 4 as first 3 are always reserved
+		int FATpos;
+		for (int i = 4; i < MAXBLOCKS; i++) {
+			if (FAT[i] == UNUSED) {
+				FAT[i] = ENDOFCHAIN;
+				file->blockno = i;				
+				break;
+			}
+		}
+		copyFAT();
+		// save file into directory
+		strcpy(rootBlock.dir.entrylist[freeDirPos].name, filename);
+		rootBlock.dir.entrylist[freeDirPos].firstblock = file->blockno;
+		rootBlock.dir.entrylist[freeDirPos].used = TRUE;
+		
+		// write updated rootBlock (directory) back to the virtualdisk
+		writeblock(&rootBlock, rootDirIndex);
+		
+		// set file buffer based on updated virtualdisk 
+		file->buffer = virtualDisk[file->blockno];
+
+	// if file doesn't exist and readmode is enabled
+	} else {
+		printf("File doesn't exist and read mode is enabled");
+		return NULL;
+	}
+
+	return file;
+}
+
+/*
+ * Write a byte into a file stream
+ * and saves it into the vitrual disk
+ */
+void myfputc(int b, MyFILE * stream) {
+
+}
+
+/*
+ * Saves out any remaining blocks that haven't been written
+ * Adds EOF to FAT after the last data in the file
+ * and saves it into the vitrual disk
+ */
+void myfclose(MyFILE * stream) {
+
+}
+
+/*
+ * Returns a file in a form of a stream, always returns
+ * the next byte of the file or EOF == -1
+ */
+int myfgetc(MyFILE * stream) {
+	return 0;
+} 
+
+
+// ### HELPER FUNCTIONS ###
 
 /* 
  * create an empty disk block initialized with \0s
