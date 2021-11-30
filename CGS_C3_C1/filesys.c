@@ -159,7 +159,6 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 
 		// find free space in FAT table, set it to EOC and save index into file
 		// start from index 4 as first 3 are always reserved
-		int FATpos;
 		for (int i = 4; i < MAXBLOCKS; i++) {
 			if (FAT[i] == UNUSED) {
 				FAT[i] = ENDOFCHAIN;
@@ -193,24 +192,61 @@ MyFILE * myfopen(const char * filename, const char * mode) {
  * and saves it into the vitrual disk
  */
 void myfputc(int b, MyFILE * stream) {
+	// if mode is read or file is empty, return
+	if(stream == NULL || strcmp(stream->mode, "r") == 0) return;
+	stream->buffer.data[stream->pos] = b;
+	stream->pos++;
+	
+	if(stream->pos == BLOCKSIZE) {
+		writeblock(&stream->buffer, stream->blockno);
+		
+		// find free block and update FAT
+		int freeBlock = findFreeFAT();
+		FAT[stream->blockno] = freeBlock;
+		FAT[freeBlock] = ENDOFCHAIN;
+		copyFAT();
 
+		// create a new empty data block and write it onto the free
+		diskblock_t block = emptyBlock();
+		writeblock(&block, freeBlock);
+
+		// update stream properties
+		stream->blockno = freeBlock;
+		stream->buffer = virtualDisk[freeBlock];
+		
+		// reset stream pos
+		stream->pos = 0;
+	}
 }
 
 /*
  * Saves out any remaining blocks that haven't been written
- * Adds EOF to FAT after the last data in the file
  * and saves it into the vitrual disk
  */
 void myfclose(MyFILE * stream) {
-
+	writeblock(&stream->buffer,stream->blockno);
+	free(stream);
 }
 
 /*
  * Returns a file in a form of a stream, always returns
  * the next byte of the file or EOF == -1
  */
-int myfgetc(MyFILE * stream) {
-	return 0;
+char myfgetc(MyFILE * stream) {
+	// when reach end of block try to go to next one
+	if (stream->pos == BLOCKSIZE && FAT[stream->blockno] != ENDOFCHAIN) {
+		stream->pos = 0;
+		stream->blockno = FAT[stream->blockno];
+		stream->buffer = virtualDisk[stream->blockno];
+	}
+	else if (stream->pos+1 == BLOCKSIZE && FAT[stream->blockno] == ENDOFCHAIN) {
+    return -1;
+  }
+	// increment position
+	stream->pos++;
+	
+	return stream->buffer.data[stream->pos - 1];
+	
 } 
 
 
@@ -246,6 +282,18 @@ void copyFAT() {
 	}
 	// write the block to the virtual disk
 	writeblock(&block, 2);
+}
+
+/*
+ * Find unused block in FAT table
+ */
+int findFreeFAT() {
+	for (int i = 4; i < MAXBLOCKS; i++) {
+		if (FAT[i] == UNUSED) {
+			return i;				
+		}
+	}
+	return -1;
 }
 
 void printBlock ( int blockIndex )

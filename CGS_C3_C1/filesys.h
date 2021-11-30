@@ -107,11 +107,12 @@ void writedisk( const char *) ;
 MyFILE * myfopen( const char *, const char *) ;
 void myfputc(int, MyFILE *) ;
 void myfclose(MyFILE *) ;
-int myfgetc(MyFILE *) ;
+char myfgetc(MyFILE *) ;
 
 // helper functions
 diskblock_t emptyBlock() ;
 void copyFAT() ;
+int findFreeFAT() ;
 
 #endif
 
