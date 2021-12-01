@@ -32,8 +32,9 @@ int main(void) {
 		fprintf(f, "%c", readFile);
 	}
 	
-	// close file 2
+	// close virtual disk file
 	myfclose(openfile);
+
 	// close real file
 	fclose(f);
 
