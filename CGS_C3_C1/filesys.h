@@ -92,10 +92,11 @@ extern diskblock_t virtualDisk [ MAXBLOCKS ] ;
 // created in the opening program
 
 typedef struct filedescriptor {
-   char        mode[3] ;
-   fatentry_t  blockno ;           // block no
-   int         pos     ;           // byte within a block
-   diskblock_t buffer  ;
+   char         mode[3] ;
+   fatentry_t   blockno ;           // block no
+   int          pos ;           // byte within a block
+   diskblock_t  buffer ;
+	 int          filelength ;
 } MyFILE ;
 
 

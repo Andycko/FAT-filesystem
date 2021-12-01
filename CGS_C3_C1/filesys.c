@@ -158,16 +158,12 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 		}
 
 		// find free space in FAT table, set it to EOC and save index into file
-		// start from index 4 as first 3 are always reserved
-		for (int i = 4; i < MAXBLOCKS; i++) {
-			if (FAT[i] == UNUSED) {
-				FAT[i] = ENDOFCHAIN;
-				file->blockno = i;				
-				break;
-			}
-		}
+		int freeFat = findFreeFAT();
+		FAT[freeFat] = ENDOFCHAIN;
+		file->blockno = freeFat;
 		copyFAT();
-		// save file into directory
+		
+		// save file into directory and directory address to file
 		strcpy(rootBlock.dir.entrylist[freeDirPos].name, filename);
 		rootBlock.dir.entrylist[freeDirPos].firstblock = file->blockno;
 		rootBlock.dir.entrylist[freeDirPos].used = TRUE;
@@ -196,8 +192,10 @@ void myfputc(int b, MyFILE * stream) {
 	if(stream == NULL || strcmp(stream->mode, "r") == 0) return;
 	stream->buffer.data[stream->pos] = b;
 	stream->pos++;
+	stream->filelength++;
 	
 	if(stream->pos == BLOCKSIZE) {
+		// write buffer to disk
 		writeblock(&stream->buffer, stream->blockno);
 		
 		// find free block and update FAT
@@ -213,24 +211,29 @@ void myfputc(int b, MyFILE * stream) {
 		// update stream properties
 		stream->blockno = freeBlock;
 		stream->buffer = virtualDisk[freeBlock];
-		
+
 		// reset stream pos
 		stream->pos = 0;
 	}
 }
 
 /*
- * Saves out any remaining blocks that haven't been written
+ * Saves out any remaining blocks that haven't been written 
  * and saves it into the vitrual disk
  */
 void myfclose(MyFILE * stream) {
-	writeblock(&stream->buffer,stream->blockno);
+	if (strcmp(stream->mode, "w") == 0) {
+		// add EOF at the end of the file
+		myfputc(EOF, stream);
+		writeblock(&stream->buffer,stream->blockno);
+	}
 	free(stream);
 }
 
 /*
  * Returns a file in a form of a stream, always returns
- * the next byte of the file or EOF == -1
+ * the next byte of the file or EOF
+ * (every file created by us already has EOF at the end, so no need to do any checks)
  */
 char myfgetc(MyFILE * stream) {
 	// when reach end of block try to go to next one
@@ -239,14 +242,11 @@ char myfgetc(MyFILE * stream) {
 		stream->blockno = FAT[stream->blockno];
 		stream->buffer = virtualDisk[stream->blockno];
 	}
-	else if (stream->pos+1 == BLOCKSIZE && FAT[stream->blockno] == ENDOFCHAIN) {
-    return -1;
-  }
+
 	// increment position
 	stream->pos++;
 	
 	return stream->buffer.data[stream->pos - 1];
-	
 } 
 
 
