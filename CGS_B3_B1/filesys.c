@@ -13,7 +13,6 @@
 diskblock_t  virtualDisk [MAXBLOCKS] ;           // define our in-memory virtual, with MAXBLOCKS blocks
 fatentry_t   FAT         [MAXBLOCKS] ;           // define a file allocation table with MAXBLOCKS 16-bit entries
 fatentry_t   rootDirIndex            = 0 ;       // rootDir will be set by format
-dirblock_t   currentDir              		 ;
 fatentry_t   currentDirIndex         = 0 ;
 
 /* writedisk : writes virtual disk out to physical disk
@@ -95,24 +94,37 @@ void format ( )
 	// copy the FAT table to the disk
 	copyFAT();
 
-	// Create an empty directory and set it to root
+	// Create an empty directory and set it to root, this block will be for naming purposes
 	block = emptyBlock();
-	block.dir.isdir = 1;
+	block.dir.isdir = TRUE;
 	block.dir.nextEntry = 0;
 	strcpy(block.dir.entrylist->name, "root");
+	// Set firstblock to 4 as we will create a new block there which will hold the actual contents of the root
+	block.dir.entrylist->firstblock = 4;
 	block.dir.entrylist->used = TRUE;
 	
 	// write block to virtual disk after the FAT table
 	writeblock(&block, 3);
 
+	// Create the actual directory for root which will hold the contents of root
+	block = emptyBlock();
+	block.dir.isdir = TRUE;
+	block.dir.nextEntry = 0;
+	strcpy(block.dir.entrylist->name, ".");
+	block.dir.entrylist->firstblock = 4;
+	block.dir.entrylist->used = TRUE;
+
+	// write to virtual disk after root wrapper
+	writeblock(&block, 4);
+
 	// Note in FAT table that a file exists in block 3 and save to disk
 	FAT[3] = ENDOFCHAIN;
+	FAT[4] = ENDOFCHAIN;
 	copyFAT();
 
 	// Set root directory index on disk and current directory index
-	rootDirIndex = 3;
-	currentDirIndex = 3;
-	currentDir = block.dir;
+	rootDirIndex = 4;
+	currentDirIndex = 4;
 }
 
 
@@ -255,36 +267,33 @@ char myfgetc(MyFILE * stream) {
  */
 void mymkdir (const char * path) {
 	// Save current dir positions
-	dirblock_t   tmpCurrentDir = currentDir;
-	fatentry_t   tmpCurrentDirIndex = currentDirIndex;
+	dirblock_t tmpCurrentDirHelp = virtualDisk[currentDirIndex].dir;
+	dirblock_t * tmpCurrentDir = &tmpCurrentDirHelp;
 
 	char * pathCopy = malloc(sizeof(path));
 	strcpy(pathCopy, path);
 
-	// if path is absolute then set current directory 
-	if (pathCopy[0] != '/') {
-		tmpCurrentDir = virtualDisk[rootDirIndex].dir;
-		tmpCurrentDirIndex = rootDirIndex;
+	// if path is absolute then set current directory to root
+	if (pathCopy[0] == '/') {
+		tmpCurrentDirHelp = virtualDisk[rootDirIndex].dir;
+		tmpCurrentDir = &tmpCurrentDirHelp;
 	}
 
 	// slice path name where the slashes are
 	char * dirName = strtok(pathCopy, "/");
 
 	while (dirName) {
-		printBlock(tmpCurrentDirIndex);
 		// Check if directory exists
-		int index = findEntry(dirName, tmpCurrentDirIndex, 'd');
+		int index = findEntry(dirName, tmpCurrentDir, 'd');
 		printf("After index search: index=%d name=%s\n", index, dirName);
 		// If exists, set current directory to that one
-		if (index != -1) {
-			printf("Directory \"%s\" already exists in \"%s\"\n", dirName, tmpCurrentDir.entrylist->name);
-			tmpCurrentDir = virtualDisk[index].dir;
-			tmpCurrentDirIndex = index;
+		if (index != -1) {			
+			printf("Directory \"%s\" already exists in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
+			tmpCurrentDir = &virtualDisk[index].dir;
 		} else {
 			// create directory in current directory
-			printf("Creating directory \"%s\" in \"%s\"\n", dirName, tmpCurrentDir.entrylist->name);
-			tmpCurrentDirIndex = createDir(dirName, tmpCurrentDirIndex);
-			tmpCurrentDir = virtualDisk[tmpCurrentDirIndex].dir;
+			printf("Creating directory \"%s\" in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
+			tmpCurrentDir = createDir(dirName, tmpCurrentDir);
 		}
 		
 		// go to next directory in path
@@ -299,7 +308,8 @@ void mymkdir (const char * path) {
  * Lists contents of a directory
  */
 char ** mylistdir (char * path) {
-	
+	for (int i=0; i < DIRENTRYCOUNT; i++) printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
+	printf("\n");
 	return 0;
 }
 
@@ -355,11 +365,11 @@ int findFreeFAT() {
 /* 
  * Find directory or file and return index if exists
  */
-int findEntry(char * name, int dirIndex, char type) {
+int findEntry(char * name, dirblock_t * currDir, char type) {
 	for (int i = 0; i < DIRENTRYCOUNT; i++) {
-		if (virtualDisk[dirIndex].dir.entrylist[i].used && strcmp(virtualDisk[dirIndex].dir.entrylist[i].name, name) == 0) {
-				if (type == 'f' && !virtualDisk[dirIndex].dir.entrylist[i].isdir) return i;
-				if (type == 'd' && virtualDisk[dirIndex].dir.entrylist[i].isdir) return i;
+		if (currDir->entrylist[i].used && strcmp(currDir->entrylist[i].name, name) == 0) {
+				if (type == 'f' && !currDir->entrylist[i].isdir) return i;
+				if (type == 'd' && currDir->entrylist[i].isdir) return i;
 		}
 	}
 	return -1;
@@ -368,44 +378,65 @@ int findEntry(char * name, int dirIndex, char type) {
 /*
  * Create a directory in a specified directory at a specified index in FAT
  */
-int createDir(char * dirName, int dirIndex) {
+dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
 	int freeFatIndex = findFreeFAT();
 	int nextFreeEntryIndex = -1;
 
 	// find free entry in current directory
 	for (int i = 0; i < DIRENTRYCOUNT; i++) {
-		if (!virtualDisk[dirIndex].dir.entrylist[i].used) {
+		if (!parentBlock->entrylist[i].used) {
 			nextFreeEntryIndex = i;
 			break;
 		}
 	}
 
 	if (nextFreeEntryIndex != -1) {
-
+		// Create a block for the new directory
   	diskblock_t block = emptyBlock();
     block.dir.isdir = 1;
     block.dir.nextEntry = 0;
+		// add link to self
+		block.dir.entrylist->used = TRUE;
+		block.dir.entrylist->firstblock = freeFatIndex;
+		strcpy(block.dir.entrylist->name, ".");
+		// add link to parent directory
+		block.dir.entrylist[1].used = TRUE;
+		block.dir.entrylist[1].firstblock = parentBlock->entrylist->firstblock;
+		strcpy(block.dir.entrylist[1].name, "..");
+		// save block
     writeblock(&block, freeFatIndex);
 		FAT[freeFatIndex] = ENDOFCHAIN;
 		copyFAT();
     
-		// nextFreeEntryIndex = virtualDisk[dirIndex].dir.nextEntry;
-		virtualDisk[dirIndex].dir.entrylist[nextFreeEntryIndex].used = TRUE;
-		virtualDisk[dirIndex].dir.entrylist[nextFreeEntryIndex].isdir = TRUE;
-		virtualDisk[dirIndex].dir.entrylist[nextFreeEntryIndex].firstblock = freeFatIndex;
-		// virtualDisk[dirIndex].dir.nextEntry++;
-		strcpy(virtualDisk[dirIndex].dir.entrylist[nextFreeEntryIndex].name, dirName);
+		// Create the new driectory in the current directory
+		parentBlock->entrylist[nextFreeEntryIndex].used = TRUE;
+		parentBlock->entrylist[nextFreeEntryIndex].isdir = TRUE;
+		parentBlock->entrylist[nextFreeEntryIndex].firstblock = freeFatIndex;
+		// memset(parentBlock->entrylist[nextFreeEntryIndex].name, '\0', MAXNAME);
+		strcpy(parentBlock->entrylist[nextFreeEntryIndex].name, dirName);
 
-		printf("Directory \"%s\" in \"%s\" was created.\n", dirName, virtualDisk[dirIndex].dir.entrylist->name);
 	} else {
 		printf("Current directory is full\n");
-		// return NULL;
+		return NULL;
 	}
 
-	return freeFatIndex;
+	return &virtualDisk[freeFatIndex].dir;
 }
 
 void printBlock ( int blockIndex )
 {
-   printf ( "virtualdisk[%d] = %s\n", blockIndex, virtualDisk[blockIndex].data ) ;
+	if (virtualDisk[blockIndex].dir.isdir) {
+		for (int i = 0; i < DIRENTRYCOUNT; i++) {
+			if (virtualDisk[blockIndex].dir.entrylist[i].used)
+			printf ( "virtualdisk[%d] = %s\n", blockIndex, virtualDisk[blockIndex].dir.entrylist[i].name) ;
+		}
+	}
+  else printf ( "virtualdisk[%d] = %s\n", blockIndex, virtualDisk[blockIndex].data ) ;
+}
+
+void printFAT() {
+	for (int i = 0; i < 20; i++) {
+		printf("FAT[%d]: %d\n", i, FAT[i]);
+		printBlock(i);
+	}
 }

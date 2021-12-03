@@ -116,11 +116,12 @@ char ** mylistdir (char *) ;
 
 // helper functions
 void printBlock(int) ;
+void printFAT() ;
 diskblock_t emptyBlock() ;
 void copyFAT() ;
 int findFreeFAT() ;
-int findEntry(char *, int, char) ;
-int createDir(char *, int) ;
+int findEntry(char *, dirblock_t *, char) ;
+dirblock_t * createDir(char *, dirblock_t *) ;
 
 #endif
 
