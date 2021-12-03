@@ -43,9 +43,6 @@ int main(void) {
 	mymkdir("/myfirstdir/myseconddir/mythirddir");
 	// mymkdir("/myfirstdir/myseconddir/mythirddir");
 	printFAT();
-	
-	
-	mylistdir("a");
 
 	writedisk("virtualdiskB3_B1");
   return 0;

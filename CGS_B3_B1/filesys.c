@@ -289,7 +289,7 @@ void mymkdir (const char * path) {
 		// If exists, set current directory to that one
 		if (index != -1) {			
 			printf("Directory \"%s\" already exists in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
-			tmpCurrentDir = &virtualDisk[index].dir;
+			tmpCurrentDir = &virtualDisk[tmpCurrentDir->entrylist[index].firstblock].dir;
 		} else {
 			// create directory in current directory
 			printf("Creating directory \"%s\" in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
@@ -299,7 +299,6 @@ void mymkdir (const char * path) {
 		// go to next directory in path
 		dirName = strtok(NULL, "/");
 	}
-
 	free(pathCopy);
 }
 
@@ -367,6 +366,7 @@ int findFreeFAT() {
  */
 int findEntry(char * name, dirblock_t * currDir, char type) {
 	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+		printf("looking at %s\n", currDir->entrylist[i].name);
 		if (currDir->entrylist[i].used && strcmp(currDir->entrylist[i].name, name) == 0) {
 				if (type == 'f' && !currDir->entrylist[i].isdir) return i;
 				if (type == 'd' && currDir->entrylist[i].isdir) return i;
