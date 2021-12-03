@@ -113,7 +113,8 @@ char myfgetc(MyFILE *) ;
 
 // directory manipulation functions
 void mymkdir (const char *) ;
-void mylistdir (char *) ;
+char ** mylistdir (char *) ;
+void mychdir (char *);
 
 // helper functions
 void printBlock(int) ;

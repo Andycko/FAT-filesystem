@@ -300,40 +300,52 @@ void mymkdir (const char * path) {
 	free(pathCopy);
 }
 
-
 /*
  * Lists contents of a directory
  */
-void mylistdir (char * path) {
-	dirblock_t * tmpCurrentDir = &virtualDisk[currentDirIndex].dir;
+char ** mylistdir (char * path) {
+	int saveCurrentDirIndex = currentDirIndex;
+	char ** res = malloc(sizeof(DIRENTRYCOUNT));
 
+	// Temporarly change path
+	mychdir(path);
+
+	// Print out all the entries and save to resulting array
+	printf("(%s) >> ", virtualDisk[currentDirIndex].dir.name);
+	for (int i=0; i < DIRENTRYCOUNT; i++) {
+		res[i] = virtualDisk[currentDirIndex].dir.entrylist[i].name;
+		printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
+	}
+	printf("\n");
+
+	// Change current path back to its previous state
+	currentDirIndex = saveCurrentDirIndex;
+	return res;
+}
+
+/*
+ * Changes currentDirIndex to a different directory
+ */
+void mychdir (char * path) {
 	// if path is absolute then set current directory to root
 	if (path[0] == '/') {
-		tmpCurrentDir = &virtualDisk[rootDirIndex].dir;
+		currentDirIndex = rootDirIndex;
 	}
 
-	char * dirName = strtok(path, "/");
+	char * pathCopy = malloc(sizeof(path));
+	strcpy(pathCopy, path);
+
+	char * dirName = strtok(pathCopy, "/");
 	
 	// Progress to the final directory
 	while (dirName) {
-		
-		int index = findEntry(dirName, tmpCurrentDir, 'd');
+		int index = findEntry(dirName, &virtualDisk[currentDirIndex].dir, 'd');
 		// If exists, set current directory to that one
-		if (index != -1) {
-			tmpCurrentDir = &virtualDisk[tmpCurrentDir->entrylist[index].firstblock].dir;			
-		}
-		else {
-			printf("Directory %s doesn't exist in %s\n", dirName, tmpCurrentDir->name);
-			return;
-		}
+		if (index != -1) currentDirIndex = virtualDisk[currentDirIndex].dir.entrylist[index].firstblock;			
+		else printf("Directory %s doesn't exist in %s\n", dirName, virtualDisk[currentDirIndex].dir.entrylist->name);
+
 		dirName = strtok(NULL, "/");
-	}	
-
-	// Print out all the entries
-	printf("(%s) >> ", tmpCurrentDir->name);
-	for (int i=0; i < DIRENTRYCOUNT; i++) printf("%s\t", tmpCurrentDir->entrylist[i].name);
-	printf("\n");
-
+	}
 }
 
 // ### HELPER FUNCTIONS ###
