@@ -94,7 +94,7 @@ void format ( )
 	// copy the FAT table to the disk
 	copyFAT();
 
-	// Create an empty directory and set it to root, this block will be for naming purposes
+	// Create an empty directory as a wrapper and set it to root, this block will be for naming purposes
 	block = emptyBlock();
 	block.dir.isdir = TRUE;
 	block.dir.nextEntry = 0;
@@ -110,6 +110,7 @@ void format ( )
 	block = emptyBlock();
 	block.dir.isdir = TRUE;
 	block.dir.nextEntry = 0;
+	block.dir.name = virtualDisk[3].dir.entrylist->name;
 	strcpy(block.dir.entrylist->name, ".");
 	block.dir.entrylist->firstblock = 4;
 	block.dir.entrylist->used = TRUE;
@@ -145,7 +146,7 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 	file->pos = 0;
 
 	// find root directory
-	diskblock_t rootBlock = virtualDisk[rootDirIndex];
+	diskblock_t rootBlock = virtualDisk[currentDirIndex];
 	// check if file already exists and save index
 	int filepos = -1;	
 	for (int i = 0; i < DIRENTRYCOUNT; i++) {
@@ -267,16 +268,14 @@ char myfgetc(MyFILE * stream) {
  */
 void mymkdir (const char * path) {
 	// Save current dir positions
-	dirblock_t tmpCurrentDirHelp = virtualDisk[currentDirIndex].dir;
-	dirblock_t * tmpCurrentDir = &tmpCurrentDirHelp;
+	dirblock_t * tmpCurrentDir = &virtualDisk[currentDirIndex].dir;
 
 	char * pathCopy = malloc(sizeof(path));
 	strcpy(pathCopy, path);
 
 	// if path is absolute then set current directory to root
 	if (pathCopy[0] == '/') {
-		tmpCurrentDirHelp = virtualDisk[rootDirIndex].dir;
-		tmpCurrentDir = &tmpCurrentDirHelp;
+		tmpCurrentDir = &virtualDisk[rootDirIndex].dir;
 	}
 
 	// slice path name where the slashes are
@@ -285,14 +284,13 @@ void mymkdir (const char * path) {
 	while (dirName) {
 		// Check if directory exists
 		int index = findEntry(dirName, tmpCurrentDir, 'd');
-		printf("After index search: index=%d name=%s\n", index, dirName);
 		// If exists, set current directory to that one
 		if (index != -1) {			
-			printf("Directory \"%s\" already exists in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
+			printf("Directory \"%s\" already exists in \"%s\"\n", dirName, tmpCurrentDir->name);
 			tmpCurrentDir = &virtualDisk[tmpCurrentDir->entrylist[index].firstblock].dir;
 		} else {
 			// create directory in current directory
-			printf("Creating directory \"%s\" in \"%s\"\n", dirName, tmpCurrentDir->entrylist->name);
+			printf("Creating directory \"%s\" in \"%s\"\n", dirName, tmpCurrentDir->name);
 			tmpCurrentDir = createDir(dirName, tmpCurrentDir);
 		}
 		
@@ -306,14 +304,37 @@ void mymkdir (const char * path) {
 /*
  * Lists contents of a directory
  */
-char ** mylistdir (char * path) {
-	for (int i=0; i < DIRENTRYCOUNT; i++) printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
+void mylistdir (char * path) {
+	dirblock_t * tmpCurrentDir = &virtualDisk[currentDirIndex].dir;
+
+	// if path is absolute then set current directory to root
+	if (path[0] == '/') {
+		tmpCurrentDir = &virtualDisk[rootDirIndex].dir;
+	}
+
+	char * dirName = strtok(path, "/");
+	
+	// Progress to the final directory
+	while (dirName) {
+		
+		int index = findEntry(dirName, tmpCurrentDir, 'd');
+		// If exists, set current directory to that one
+		if (index != -1) {
+			tmpCurrentDir = &virtualDisk[tmpCurrentDir->entrylist[index].firstblock].dir;			
+		}
+		else {
+			printf("Directory %s doesn't exist in %s\n", dirName, tmpCurrentDir->name);
+			return;
+		}
+		dirName = strtok(NULL, "/");
+	}	
+
+	// Print out all the entries
+	printf("(%s) >> ", tmpCurrentDir->name);
+	for (int i=0; i < DIRENTRYCOUNT; i++) printf("%s\t", tmpCurrentDir->entrylist[i].name);
 	printf("\n");
-	return 0;
+
 }
-
-
-
 
 // ### HELPER FUNCTIONS ###
 
@@ -366,7 +387,6 @@ int findFreeFAT() {
  */
 int findEntry(char * name, dirblock_t * currDir, char type) {
 	for (int i = 0; i < DIRENTRYCOUNT; i++) {
-		printf("looking at %s\n", currDir->entrylist[i].name);
 		if (currDir->entrylist[i].used && strcmp(currDir->entrylist[i].name, name) == 0) {
 				if (type == 'f' && !currDir->entrylist[i].isdir) return i;
 				if (type == 'd' && currDir->entrylist[i].isdir) return i;
@@ -395,6 +415,7 @@ dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
   	diskblock_t block = emptyBlock();
     block.dir.isdir = 1;
     block.dir.nextEntry = 0;
+		block.dir.name = parentBlock->entrylist[nextFreeEntryIndex].name;
 		// add link to self
 		block.dir.entrylist->used = TRUE;
 		block.dir.entrylist->firstblock = freeFatIndex;

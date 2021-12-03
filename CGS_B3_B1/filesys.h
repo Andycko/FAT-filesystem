@@ -63,6 +63,7 @@ typedef struct direntry {
 typedef struct dirblock {
    int isdir ;
    int nextEntry ;
+	 char * name ;
    direntry_t entrylist [ DIRENTRYCOUNT ] ; // the first two integer are marker and endpos
 } dirblock_t ;
 
@@ -112,7 +113,7 @@ char myfgetc(MyFILE *) ;
 
 // directory manipulation functions
 void mymkdir (const char *) ;
-char ** mylistdir (char *) ;
+void mylistdir (char *) ;
 
 // helper functions
 void printBlock(int) ;
