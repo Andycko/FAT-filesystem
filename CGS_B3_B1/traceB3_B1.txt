@@ -1,5 +1,5 @@
 writedisk> virtualdisk[0] = CS3026 Operating Systems Assesment 2 - Andrej Szalma
-(myseconddir) >> .	mythirddir		
+(myseconddir) >> .	..	mythirddir									
 writedisk> virtualdisk[0] = CS3026 Operating Systems Assesment 2 - Andrej Szalma
-(myseconddir) >> .	mythirddir	testfile.txt	
+(myseconddir) >> .	..	mythirddir	testfile.txt								
 writedisk> virtualdisk[0] = CS3026 Operating Systems Assesment 2 - Andrej Szalma

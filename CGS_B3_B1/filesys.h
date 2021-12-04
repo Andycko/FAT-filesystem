@@ -21,7 +21,7 @@
 #define BLOCKSIZE     1024
 #define FATENTRYCOUNT (BLOCKSIZE / sizeof(fatentry_t))
 #define DIRENTRYCOUNT ((BLOCKSIZE - (2*sizeof(int)) ) / sizeof(direntry_t))
-#define MAXNAME       256
+#define MAXNAME       256 / 4
 #define MAXPATHLENGTH 1024
 
 #define UNUSED        -1

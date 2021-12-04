@@ -42,11 +42,8 @@ int main(void) {
 	mymkdir("myfirstdir/myseconddir/mythirddir/");
 	
 	// List contents in myseconddir (the function returns and prints the list as well)
-	mylistdir("myfirstdir/myseconddir/");
-	
-	// mymkdir("myfirstdir/myseconddir/mythirddir2/");
-	// mylistdir("myfirstdir/myseconddir/");
-
+	mylistdir("/myfirstdir/myseconddir/");
+		
 	// write out virtual disk
 	writedisk("virtualdiskB3_B1_a");
 

@@ -195,14 +195,20 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 	// if file doesn't exist and writemode is enabled
 	} else if (strcmp(mode, "w") == 0) {
 		// find free file space in directory
-		int freeDirPos;
+		int freeDirPos = -1;
 		for (int i = 0; i < DIRENTRYCOUNT; i++) {
 			if (!block.dir.entrylist[i].used) {	
 				freeDirPos = i;
 				break;
 			}
 		}
-
+		if (freeDirPos == -1) {
+			printf("File can't be created, directory full.\n");
+			free(file);
+			currentDirIndex = saveCurrentDirIndex;
+			free(filename);
+			return NULL;
+		}
 		// find free space in FAT table, set it to EOC and save index into file
 		int freeFat = findFreeFAT();
 		FAT[freeFat] = ENDOFCHAIN;
@@ -274,6 +280,7 @@ void myfputc(int b, MyFILE * stream) {
  * and saves it into the vitrual disk
  */
 void myfclose(MyFILE * stream) {
+	if(stream == NULL) return;
 	if (strcmp(stream->mode, "w") == 0) {
 		// add EOF at the end of the file
 		myfputc(EOF, stream);
@@ -340,7 +347,7 @@ void mymkdir (const char * path) {
  */
 char ** mylistdir (char * path) {
 	int saveCurrentDirIndex = currentDirIndex;
-	char ** res = malloc(sizeof(DIRENTRYCOUNT));
+	char ** res = malloc(DIRENTRYCOUNT * MAXNAME * sizeof(char));
 
 	// Temporarly change path
 	mychdir(path);
@@ -348,8 +355,10 @@ char ** mylistdir (char * path) {
 	// Print out all the entries and save to resulting array
 	printf("(%s) >> ", virtualDisk[currentDirIndex].dir.name);
 	for (int i=0; i < DIRENTRYCOUNT; i++) {
-		res[i] = virtualDisk[currentDirIndex].dir.entrylist[i].name;
 		printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
+		res[i] = malloc(sizeof(res) * MAXNAME);
+		if (strlen(virtualDisk[currentDirIndex].dir.entrylist[i].name) != 0)
+			strcpy(res[i], virtualDisk[currentDirIndex].dir.entrylist[i].name);
 	}
 	printf("\n");
 
@@ -468,9 +477,9 @@ dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
 		strcpy(block.dir.entrylist->name, ".");
 		
 		// add link to parent directory
-		// block.dir.entrylist[1].used = TRUE;
-		// block.dir.entrylist[1].firstblock = parentBlock->entrylist->firstblock;
-		// strcpy(block.dir.entrylist[1].name, "..");
+		block.dir.entrylist[1].used = TRUE;
+		block.dir.entrylist[1].firstblock = parentBlock->entrylist->firstblock;
+		strcpy(block.dir.entrylist[1].name, "..");
 		
 		// save block
     writeblock(&block, freeFatIndex);
