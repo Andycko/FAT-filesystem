@@ -38,17 +38,26 @@ int main(void) {
 	// close real file
 	fclose(f);
 
-	// printFAT();
+	// Create a directory/directories
+	mymkdir("myfirstdir/myseconddir/mythirddir/");
 	
-	mymkdir("/myfirstdir/myseconddir/mythirddir");
-	// mymkdir("/myfirstdir/myseconddir/mythirddir");
-	// printFAT();
+	// List contents in myseconddir (the function returns and prints the list as well)
+	mylistdir("myfirstdir/myseconddir/");
+	
+	// mymkdir("myfirstdir/myseconddir/mythirddir2/");
+	// mylistdir("myfirstdir/myseconddir/");
 
- 	mylistdir("");
-	mychdir("myfirstdir");
-	mylistdir("");
-	mylistdir("");
-	
-	writedisk("virtualdiskB3_B1");
+	// write out virtual disk
+	writedisk("virtualdiskB3_B1_a");
+
+	// Create a file and write a Byte in it
+	newfile = myfopen("myfirstdir/myseconddir/testfile.txt", "w");
+	myfputc('A', newfile);
+	myfclose(newfile);
+
+	// List out the contents in myseconddir
+	mylistdir("myfirstdir/myseconddir/");
+
+	writedisk("virtualdiskB3_B1_b");
   return 0;
 }
