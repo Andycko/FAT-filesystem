@@ -97,7 +97,7 @@ void format ( )
 	// Create an empty directory as a wrapper and set it to root, this block will be for naming purposes
 	block = emptyBlock();
 	block.dir.isdir = TRUE;
-	block.dir.nextEntry = 0;
+	block.dir.nextEntry = 1;
 	strcpy(block.dir.entrylist->name, "root");
 	// Set firstblock to 4 as we will create a new block there which will hold the actual contents of the root
 	block.dir.entrylist->firstblock = 4;
@@ -110,7 +110,7 @@ void format ( )
 	// Create the actual directory for root which will hold the contents of root
 	block = emptyBlock();
 	block.dir.isdir = TRUE;
-	block.dir.nextEntry = 0;
+	block.dir.nextEntry = 1;
 	block.dir.parentEntry = &virtualDisk[3].dir.entrylist[0];
 	strcpy(block.dir.entrylist->name, ".");
 	block.dir.entrylist->firstblock = 4;
@@ -184,7 +184,7 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 	diskblock_t block = virtualDisk[currentDirIndex];
 	// check if file already exists and save index
 	int filepos = -1;	
-	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+	for (int i = 0; i < block.dir.nextEntry; i++) {
 		if (block.dir.entrylist[i].used && strcmp(block.dir.entrylist[i].name, filename) == 0) {
 			filepos = i;
 			break;
@@ -198,13 +198,10 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 	// if file doesn't exist and writemode is enabled
 	} else if (strcmp(mode, "w") == 0) {
 		// find free file space in directory
-		int freeDirPos = -1;
-		for (int i = 0; i < DIRENTRYCOUNT; i++) {
-			if (!block.dir.entrylist[i].used) {	
-				freeDirPos = i;
-				break;
-			}
-		}
+		int freeDirPos = block.dir.nextEntry;
+		if (freeDirPos >= sizeof(block.dir.entrylist))
+			freeDirPos = -1;
+
 		if (freeDirPos == -1) {
 			printf("File can't be created, directory full.\n");
 			free(file);
@@ -351,9 +348,9 @@ void myremove(char * path) {
 
 	// find current directory
 	dirblock_t * block = &virtualDisk[currentDirIndex].dir;
-	// check if file already exists and save index
+	// check if file exists and save index
 	int filepos = -1;	
-	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+	for (int i = 0; i < block->nextEntry; i++) {
 		if (block->entrylist[i].used && strcmp(block->entrylist[i].name, filename) == 0) {
 			filepos = i;
 			break;
@@ -362,13 +359,13 @@ void myremove(char * path) {
 
 	if (filepos == -1) {
 		printf("File doesn't exist.\n");
-		return;
 	} else {		
 		// reset the blockchain 		
 		remove_blockchain(block->entrylist[filepos].firstblock);
 
-		// reset entry in entrylist
+		// reset entry in entrylist and decrement nextEntry
 		remove_direntry(&block->entrylist[filepos]);
+		block->nextEntry--;
 	}
 	
 	currentDirIndex = saveCurrentDirIndex;
@@ -421,7 +418,7 @@ char ** mylistdir (char * path) {
 
 	// Print out all the entries and save to resulting array
 	printf("(%s) >> ", virtualDisk[currentDirIndex].dir.parentEntry->name);
-	for (int i=0; i < DIRENTRYCOUNT; i++) {
+	for (int i=0; i < virtualDisk[currentDirIndex].dir.nextEntry; i++) {
 		printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
 		res[i] = malloc(sizeof(res) * MAXNAME);
 		if (strlen(virtualDisk[currentDirIndex].dir.entrylist[i].name) != 0)
@@ -473,7 +470,7 @@ void myrmdir(char * path) {
 	}
 
 	// if directory not empty, return
-	if (virtualDisk[currentDirIndex].dir.nextEntry == 2) {
+	if (virtualDisk[currentDirIndex].dir.nextEntry == 4) {
 		printf("Only an empty directory can be deleted, please delete contents first.\n");
 		return;
 	}
@@ -588,22 +585,17 @@ int findEntry(char * name, dirblock_t * currDir, char type) {
  * Create a directory in a specified directory at a specified index in FAT
  */
 dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
+	// Find next free FAT block and index in parentblock entrylist
 	int freeFatIndex = findFreeFAT();
-	int nextFreeEntryIndex = -1;
-
-	// find free entry in current directory
-	for (int i = 0; i < DIRENTRYCOUNT; i++) {
-		if (!parentBlock->entrylist[i].used) {
-			nextFreeEntryIndex = i;
-			break;
-		}
-	}
+	int nextFreeEntryIndex = parentBlock->nextEntry;
+	if (nextFreeEntryIndex >= sizeof(parentBlock->entrylist))
+		nextFreeEntryIndex = -1;
 
 	if (nextFreeEntryIndex != -1) {
 		// Create a block for the new directory
   	diskblock_t block = emptyBlock();
     block.dir.isdir = 1;
-    block.dir.nextEntry = 0;
+    block.dir.nextEntry = 2;
 		block.dir.parentEntry = &parentBlock->entrylist[nextFreeEntryIndex];
 		// add link to self
 		block.dir.entrylist->used = TRUE;

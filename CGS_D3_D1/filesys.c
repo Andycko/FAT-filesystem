@@ -97,7 +97,7 @@ void format ( )
 	// Create an empty directory and set it to root
 	block = emptyBlock();
 	block.dir.isdir = 1;
-	block.dir.nextEntry = 0;
+	block.dir.nextEntry = 1;
 	strcpy(block.dir.entrylist->name, "root");
 	// write block to virtual disk after the FAT table
 	writeblock(&block, 3);

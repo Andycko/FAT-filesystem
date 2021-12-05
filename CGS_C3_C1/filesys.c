@@ -98,7 +98,7 @@ void format ( )
 	// Create an empty directory and set it to root
 	block = emptyBlock();
 	block.dir.isdir = 1;
-	block.dir.nextEntry = 0;
+	block.dir.nextEntry = 1;
 	strcpy(block.dir.entrylist->name, "root");
 	block.dir.entrylist->used = TRUE;
 	
@@ -135,7 +135,7 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 	diskblock_t rootBlock = virtualDisk[rootDirIndex];
 	// check if file already exists and save index
 	int filepos = -1;	
-	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+	for (int i = 0; i < rootBlock.dir.nextEntry; i++) {
 		if (rootBlock.dir.entrylist[i].used && strcmp(rootBlock.dir.entrylist[i].name, filename) == 0) {
 			filepos = i;
 			break;
@@ -149,12 +149,14 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 	// if file doesn't exist and writemode is enabled
 	} else if (strcmp(mode, "w") == 0) {
 		// find free file space in directory
-		int freeDirPos;
-		for (int i = 0; i < DIRENTRYCOUNT; i++) {
-			if (!rootBlock.dir.entrylist[i].used) {	
-				freeDirPos = i;
-				break;
-			}
+		int freeDirPos = rootBlock.dir.nextEntry;
+		if (freeDirPos >= sizeof(rootBlock.dir.entrylist)) 
+			freeDirPos = -1;
+
+		if (freeDirPos == -1) {
+			printf("File can't be created, directory full.\n");
+			free(file);
+			return NULL;
 		}
 
 		// find free space in FAT table, set it to EOC and save index into file
@@ -167,6 +169,7 @@ MyFILE * myfopen(const char * filename, const char * mode) {
 		strcpy(rootBlock.dir.entrylist[freeDirPos].name, filename);
 		rootBlock.dir.entrylist[freeDirPos].firstblock = file->blockno;
 		rootBlock.dir.entrylist[freeDirPos].used = TRUE;
+		rootBlock.dir.nextEntry++;
 		
 		// write updated rootBlock (directory) back to the virtualdisk
 		writeblock(&rootBlock, rootDirIndex);
