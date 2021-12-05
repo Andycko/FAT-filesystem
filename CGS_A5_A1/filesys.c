@@ -111,7 +111,7 @@ void format ( )
 	block = emptyBlock();
 	block.dir.isdir = TRUE;
 	block.dir.nextEntry = 0;
-	block.dir.name = virtualDisk[3].dir.entrylist->name;
+	block.dir.parentEntry = &virtualDisk[3].dir.entrylist[0];
 	strcpy(block.dir.entrylist->name, ".");
 	block.dir.entrylist->firstblock = 4;
 	block.dir.entrylist->used = TRUE;
@@ -154,6 +154,7 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 	if (strchr(filenamePath, '/') != NULL) {
 		char * filenameCopy = strdup(filenamePath);
 		char * path = malloc(strlen(filenamePath));
+		memset(path, '\0', strlen(filenamePath));
 		char * token = strtok(filenameCopy, "/");
 
 		while (1) {
@@ -166,6 +167,7 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 				}
 			else break;
 		}
+
 		mychdir(path);
 		free(path);		
 		free(filenameCopy);
@@ -220,7 +222,8 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 		strcpy(block.dir.entrylist[freeDirPos].name, filename);
 		block.dir.entrylist[freeDirPos].firstblock = file->blockno;
 		block.dir.entrylist[freeDirPos].used = TRUE;
-		
+		block.dir.nextEntry++;
+
 		// write updated block (directory) back to the virtualdisk
 		writeblock(&block, currentDirIndex);
 		
@@ -316,7 +319,7 @@ void myremove(char * path) {
 	// Save previous currDirIndex and progress to good path
 	int saveCurrentDirIndex = currentDirIndex;
 	char * filename = malloc(sizeof(MAXNAME));	
-	
+
 	// if path is absolute then set current directory index to root
 	if (path[0] == '/') {
 		currentDirIndex = rootDirIndex;
@@ -326,8 +329,9 @@ void myremove(char * path) {
 	if (strchr(path, '/') != NULL) {	
 		char * filenameCopy = strdup(path);
 		char * filepath = malloc(strlen(path));
+		memset(filepath, '\0', strlen(path));
 		char * token = strtok(filenameCopy, "/");
-	
+
 		while (1) {
 			strcpy(filename, token);
 			token = strtok(NULL, "/");
@@ -359,31 +363,14 @@ void myremove(char * path) {
 	if (filepos == -1) {
 		printf("File doesn't exist.\n");
 		return;
-	} else {
-		// start reseting blocks 		
-		int nextBlock = block->entrylist[filepos].firstblock;
+	} else {		
+		// reset the blockchain 		
+		remove_blockchain(block->entrylist[filepos].firstblock);
 
-		while (nextBlock > 0) {
-			// reset data block
-			virtualDisk[nextBlock] = emptyBlock();
-			// write to disk
-			writeblock(&virtualDisk[nextBlock], nextBlock);
-			// look at next entry in FAT and reset current to unused
-			nextBlock = FAT[nextBlock];
-			FAT[nextBlock] = -1;
-		}
-
-		// save FAT and reset entry in entrylist
-		copyFAT();
-		block->entrylist[filepos].entrylength = '\0';
-		block->entrylist[filepos].isdir = '\0';
-		block->entrylist[filepos].used = '\0';
-		block->entrylist[filepos].modtime = '\0';
-		block->entrylist[filepos].filelength = '\0';
-		block->entrylist[filepos].firstblock = '\0';
-		memset(block->entrylist[filepos].name,'\0', MAXNAME);
+		// reset entry in entrylist
+		remove_direntry(&block->entrylist[filepos]);
 	}
-
+	
 	currentDirIndex = saveCurrentDirIndex;
 	free(filename);
 }
@@ -433,7 +420,7 @@ char ** mylistdir (char * path) {
 	mychdir(path);
 
 	// Print out all the entries and save to resulting array
-	printf("(%s) >> ", virtualDisk[currentDirIndex].dir.name);
+	printf("(%s) >> ", virtualDisk[currentDirIndex].dir.parentEntry->name);
 	for (int i=0; i < DIRENTRYCOUNT; i++) {
 		printf("%s\t", virtualDisk[currentDirIndex].dir.entrylist[i].name);
 		res[i] = malloc(sizeof(res) * MAXNAME);
@@ -464,14 +451,81 @@ void mychdir (char * path) {
 		int index = findEntry(dirName, &virtualDisk[currentDirIndex].dir, 'd');
 		// If exists, set current directory to that one
 		if (index != -1) currentDirIndex = virtualDisk[currentDirIndex].dir.entrylist[index].firstblock;			
-		else printf("Directory %s doesn't exist in %s\n", dirName, virtualDisk[currentDirIndex].dir.name);
+		else printf("Directory %s doesn't exist in %s\n", dirName, virtualDisk[currentDirIndex].dir.parentEntry->name);
 
 		dirName = strtok(NULL, "/");
 	}
 	free(pathCopy);
 }
 
+/*
+ * Remove a file based on given relative or absolute path
+ */
+void myrmdir(char * path) {
+	// Save current dir index and change path to directory that needs deletion
+	int saveCurrentDirIndex = currentDirIndex;
+	mychdir(path);
+
+	// if trying to delete the root dir, return
+	if (virtualDisk[currentDirIndex].dir.entrylist[0].firstblock == 4) {
+		printf("The root directory can not be deleted.\n");
+		return;
+	}
+
+	// if directory not empty, return
+	if (virtualDisk[currentDirIndex].dir.nextEntry == 2) {
+		printf("Only an empty directory can be deleted, please delete contents first.\n");
+		return;
+	}
+
+	// remove entry from parent directory 
+	direntry_t * parent = virtualDisk[currentDirIndex].dir.parentEntry;
+	remove_blockchain(parent->firstblock);
+
+	// Remove parent direntry
+	remove_direntry(parent);
+
+
+	// remove . and .. entries from current directory
+	remove_direntry(&virtualDisk[currentDirIndex].dir.entrylist[0]);
+	remove_direntry(&virtualDisk[currentDirIndex].dir.entrylist[1]);
+
+	currentDirIndex = saveCurrentDirIndex;
+
+}
+
 // ### HELPER FUNCTIONS ###
+
+/*
+ * Remove a direntry
+ */
+void remove_direntry(direntry_t * entry) {
+		entry->entrylength = '\0';
+		entry->isdir = '\0';
+		entry->used = '\0';
+		entry->modtime = '\0';
+		entry->filelength = '\0';
+		entry->firstblock = '\0';
+		memset(entry->name,'\0', MAXNAME);
+}
+
+/*
+ * Remove a whole blockchain from FAT and resets the blocks
+ */
+void remove_blockchain(int blockno) {
+	while(blockno > 0) {
+		// reset the block on the disk
+		virtualDisk[blockno] = emptyBlock();
+
+		// reset the block in FAT
+		blockno = FAT[blockno];
+		FAT[blockno] = -1;
+	}
+
+	if (blockno == 0) FAT[blockno] = -1;
+
+	copyFAT();
+}
 
 /* 
  * create an empty disk block initialized with \0s
@@ -550,7 +604,7 @@ dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
   	diskblock_t block = emptyBlock();
     block.dir.isdir = 1;
     block.dir.nextEntry = 0;
-		block.dir.name = parentBlock->entrylist[nextFreeEntryIndex].name;
+		block.dir.parentEntry = &parentBlock->entrylist[nextFreeEntryIndex];
 		// add link to self
 		block.dir.entrylist->used = TRUE;
 		block.dir.entrylist->isdir = TRUE;
@@ -573,6 +627,7 @@ dirblock_t * createDir(char * dirName, dirblock_t * parentBlock) {
 		parentBlock->entrylist[nextFreeEntryIndex].isdir = TRUE;
 		parentBlock->entrylist[nextFreeEntryIndex].firstblock = freeFatIndex;
 		strcpy(parentBlock->entrylist[nextFreeEntryIndex].name, dirName);
+		parentBlock->nextEntry++;
 
 	} else {
 		printf("Current directory is full\n");

@@ -20,7 +20,7 @@
 #define MAXBLOCKS     1024
 #define BLOCKSIZE     1024
 #define FATENTRYCOUNT (BLOCKSIZE / sizeof(fatentry_t))
-#define DIRENTRYCOUNT ((BLOCKSIZE - (2*sizeof(int)) ) / sizeof(direntry_t))
+#define DIRENTRYCOUNT ((BLOCKSIZE - (2*sizeof(int) + sizeof(direntry_t *)) ) / sizeof(direntry_t))
 #define MAXNAME       256 / 4
 #define MAXPATHLENGTH 1024
 
@@ -63,7 +63,7 @@ typedef struct direntry {
 typedef struct dirblock {
    int isdir ;
    int nextEntry ;
-	 char * name ;
+	 direntry_t * parentEntry ;
    direntry_t entrylist [ DIRENTRYCOUNT ] ; // the first two integer are marker and endpos
 } dirblock_t ;
 
@@ -115,9 +115,12 @@ void myremove(char *) ;
 // directory manipulation functions
 void mymkdir (const char *) ;
 char ** mylistdir (char *) ;
-void mychdir (char *);
+void mychdir (char *) ;
+void myrmdir (char *) ;
 
 // helper functions
+void remove_direntry(direntry_t *) ;
+void remove_blockchain(int) ;
 void printBlock(int) ;
 void printFAT() ;
 diskblock_t emptyBlock() ;

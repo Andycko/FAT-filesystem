@@ -3,62 +3,47 @@
 
 int main(void) {
 	
-	// format our virtual disk
 	format();
-	
-	// Open a new file or continue writing to an existing one
-	MyFILE * newfile = myfopen("testfile.txt", "w");
+	mymkdir("/firstdir/seconddir");
 
-	// populate the file with 4kb worth of 'X's
-	for (int i = 0; i < 1 * BLOCKSIZE; i++) myfputc("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26], newfile);
-	
-	// close file
+	MyFILE * newfile = myfopen("/firstdir/seconddir/testfile1.txt", "w");
+	for (int i = 0; i < 34; i++) myfputc("I am the content of testfile1.txt"[i], newfile);
 	myfclose(newfile);
 
-	// write the contents of the virtualdisk into a file called "virtualdiskD3_D1"
-	writedisk("virtualdiskA5_A1");
+	mylistdir("/firstdir/seconddir");
+	mychdir("/firstdir/seconddir");
+	mylistdir(".");
 
-	// Open the previous file to read
-	MyFILE * openfile = myfopen("testfile.txt", "r");
+	newfile = myfopen("testfile2.txt", "w");
+	for (int i = 0; i < 34; i++) myfputc("I am the content of testfile2.txt"[i], newfile);
+	myfclose(newfile);
 
-	// Open a real file in our folder to write to
-  FILE *f = fopen("testfileA5_A1_copy.txt", "w");
+	mymkdir("thirddir");
 
-	// Print out whole file
-	while (1) {
-		char readFile = myfgetc(openfile);
-		if (readFile == EOF) break;
-		// printf("%c", readFile);
-		fprintf(f, "%c", readFile);
-	}
-	
-	// close virtual disk file
-	myfclose(openfile);
+	newfile = myfopen("thirddir/testfile3.txt", "w");
+	for (int i = 0; i < 34; i++) myfputc("I am the content of testfile3.txt"[i], newfile);
+	myfclose(newfile);
 
-	// close real file
-	fclose(f);
-
-	// Create a directory/directories
-	mymkdir("myfirstdir/myseconddir/mythirddir/");
-	
-	// List contents in myseconddir (the function returns and prints the list as well)
-	mylistdir("/myfirstdir/myseconddir/");
-		
-	// write out virtual disk
 	writedisk("virtualdiskA5_A1_a");
 
-	// Create a file and write a Byte in it
-	newfile = myfopen("myfirstdir/myseconddir/testfile.txt", "w");
-	myfputc('A', newfile);
-	myfclose(newfile);
-
-	// List out the contents in myseconddir
-	mylistdir("myfirstdir/myseconddir/");
+	myremove("testfile1.txt");
+	myremove("testfile2.txt");
 	
-	myremove("myfirstdir/myseconddir/testfile.txt");
-
-	mylistdir("myfirstdir/myseconddir/");
-
 	writedisk("virtualdiskA5_A1_b");
+
+	mychdir("thirddir");
+	myremove("testfile3.txt");
+
+	writedisk("virtualdiskA5_A1_c");
+
+	mychdir("..");
+	myrmdir("thirddir");
+	mychdir("/firstdir");
+	myrmdir("seconddir");
+	mychdir("..");
+	myrmdir("firstdir");
+
+	writedisk("virtualdiskA5_A1_d");
+
   return 0;
 }

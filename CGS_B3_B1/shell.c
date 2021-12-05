@@ -10,7 +10,7 @@ int main(void) {
 	MyFILE * newfile = myfopen("testfile.txt", "w");
 
 	// populate the file with 4kb worth of 'X's
-	for (int i = 0; i < 1 * BLOCKSIZE; i++) myfputc("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26], newfile);
+	for (int i = 0; i < 4 * BLOCKSIZE; i++) myfputc("ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26], newfile);
 	
 	// close file
 	myfclose(newfile);

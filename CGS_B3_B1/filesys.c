@@ -154,6 +154,7 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 	if (strchr(filenamePath, '/') != NULL) {
 		char * filenameCopy = strdup(filenamePath);
 		char * path = malloc(strlen(filenamePath));
+		memset(path, '\0', strlen(filenamePath));
 		char * token = strtok(filenameCopy, "/");
 
 		while (1) {
