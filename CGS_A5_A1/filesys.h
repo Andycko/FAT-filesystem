@@ -110,6 +110,7 @@ MyFILE * myfopen( const char *, const char *) ;
 void myfputc(int, MyFILE *) ;
 void myfclose(MyFILE *) ;
 char myfgetc(MyFILE *) ;
+void myremove(char *) ;
 
 // directory manipulation functions
 void mymkdir (const char *) ;

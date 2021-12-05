@@ -166,7 +166,6 @@ MyFILE * myfopen(const char * filenamePath, const char * mode) {
 				}
 			else break;
 		}
-
 		mychdir(path);
 		free(path);		
 		free(filenameCopy);
@@ -309,6 +308,86 @@ char myfgetc(MyFILE * stream) {
 	
 	return stream->buffer.data[stream->pos - 1];
 } 
+
+/*
+ * Remove a file based on given relative or absolute path
+ */
+void myremove(char * path) {
+	// Save previous currDirIndex and progress to good path
+	int saveCurrentDirIndex = currentDirIndex;
+	char * filename = malloc(sizeof(MAXNAME));	
+	
+	// if path is absolute then set current directory index to root
+	if (path[0] == '/') {
+		currentDirIndex = rootDirIndex;
+	}	
+
+	// progress to the correct directory if the path is a path
+	if (strchr(path, '/') != NULL) {	
+		char * filenameCopy = strdup(path);
+		char * filepath = malloc(strlen(path));
+		char * token = strtok(filenameCopy, "/");
+	
+		while (1) {
+			strcpy(filename, token);
+			token = strtok(NULL, "/");
+
+			if (token) {
+				strcat(filepath,filename);
+				strcat(filepath,"/");
+				}
+			else break;
+		}
+		mychdir(filepath);
+		free(filepath);		
+		free(filenameCopy);
+	} else {
+			strcpy(filename, path);
+	}
+
+	// find current directory
+	dirblock_t * block = &virtualDisk[currentDirIndex].dir;
+	// check if file already exists and save index
+	int filepos = -1;	
+	for (int i = 0; i < DIRENTRYCOUNT; i++) {
+		if (block->entrylist[i].used && strcmp(block->entrylist[i].name, filename) == 0) {
+			filepos = i;
+			break;
+		}
+	}
+
+	if (filepos == -1) {
+		printf("File doesn't exist.\n");
+		return;
+	} else {
+		// start reseting blocks 		
+		int nextBlock = block->entrylist[filepos].firstblock;
+
+		while (nextBlock > 0) {
+			// reset data block
+			virtualDisk[nextBlock] = emptyBlock();
+			// write to disk
+			writeblock(&virtualDisk[nextBlock], nextBlock);
+			// look at next entry in FAT and reset current to unused
+			nextBlock = FAT[nextBlock];
+			FAT[nextBlock] = -1;
+		}
+
+		// save FAT
+		copyFAT();
+		block->entrylist[filepos].entrylength = '\0';
+		block->entrylist[filepos].isdir = '\0';
+		block->entrylist[filepos].used = '\0';
+		block->entrylist[filepos].modtime = '\0';
+		block->entrylist[filepos].filelength = '\0';
+		block->entrylist[filepos].firstblock = '\0';
+		for (int i = 0; i < MAXNAME; i++)
+		block->entrylist[filepos].name[i] = '\0';
+	}
+
+	currentDirIndex = saveCurrentDirIndex;
+	free(filename);
+}
 
 /*
  * Creates a new directory based on the path

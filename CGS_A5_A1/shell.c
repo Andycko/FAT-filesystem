@@ -54,6 +54,10 @@ int main(void) {
 
 	// List out the contents in myseconddir
 	mylistdir("myfirstdir/myseconddir/");
+	
+	myremove("myfirstdir/myseconddir/testfile.txt");
+
+	mylistdir("myfirstdir/myseconddir/");
 
 	writedisk("virtualdiskA5_A1_b");
   return 0;
