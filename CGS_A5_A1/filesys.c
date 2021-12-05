@@ -373,7 +373,7 @@ void myremove(char * path) {
 			FAT[nextBlock] = -1;
 		}
 
-		// save FAT
+		// save FAT and reset entry in entrylist
 		copyFAT();
 		block->entrylist[filepos].entrylength = '\0';
 		block->entrylist[filepos].isdir = '\0';
@@ -381,8 +381,7 @@ void myremove(char * path) {
 		block->entrylist[filepos].modtime = '\0';
 		block->entrylist[filepos].filelength = '\0';
 		block->entrylist[filepos].firstblock = '\0';
-		for (int i = 0; i < MAXNAME; i++)
-		block->entrylist[filepos].name[i] = '\0';
+		memset(block->entrylist[filepos].name,'\0', MAXNAME);
 	}
 
 	currentDirIndex = saveCurrentDirIndex;
